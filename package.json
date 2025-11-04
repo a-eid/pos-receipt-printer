@@ -1,7 +1,7 @@
 {
   "name": "pos-receipt-printer",
   "version": "0.1.0",
-  "description": "ESC/POS receipt printing (serial) with Arabic shaping, for Electron/Node",
+  "description": "ESC/POS receipt printing (serial) with Arabic shaping for Electron/Node",
   "main": "index.js",
   "types": "index.d.ts",
   "files": [
@@ -12,12 +12,12 @@
   "scripts": {
     "build": "napi build --release",
     "build:debug": "napi build",
+    "install": "napi install --platform --arch || napi build --release",
     "prepublishOnly": "npm run build"
   },
   "engines": { "node": ">=20" },
-  "os": ["win32","darwin","linux"],
+  "os": ["win32", "darwin", "linux"],
   "keywords": ["escpos", "receipt", "thermal", "serial", "electron", "napi"],
-  "author": "Ahmed",
   "license": "MIT",
   "devDependencies": {
     "@napi-rs/cli": "^3.4.1",

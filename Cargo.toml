@@ -9,8 +9,6 @@ crate-type = ["cdylib"]
 [dependencies]
 napi = { version = "2", features = ["tokio_rt"] }
 napi-derive = "2"
-
-# your stack
 escpos-rs = { git = "https://github.com/fabienbellanger/escpos-rs" }
 serialport = "4.7"
 image = "0.24"
@@ -18,9 +16,6 @@ imageproc = "0.23"
 ab_glyph = "0.2"
 ar-reshaper = "0.5"
 serde = { version = "1.0", features = ["derive"] }
-
-# optional: for PNG font bundling etc.
-once_cell = "1.19"
 
 [build-dependencies]
 napi-build = "2"
