@@ -42,7 +42,6 @@ function getTarget() {
 }
 
 function getReleaseTag() {
-	// Expect tags like vX.Y.Z matching package.json version
 	return `v${pkg.version}`;
 }
 
