@@ -21,25 +21,20 @@ jobs:
           # Windows x64
           - os: windows-latest
             artifact_name: pos-receipt-printer-win32-x64.node
-          # macOS Apple Silicon
-          - os: macos-latest
-            artifact_name: pos-receipt-printer-darwin-arm64.node
-          # macOS Intel
-          - os: macos-13
-            artifact_name: pos-receipt-printer-darwin-x64.node
-          # Linux x64 (glibc)
-          - os: ubuntu-latest
-            artifact_name: pos-receipt-printer-linux-x64-gnu.node
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'pnpm'
       - uses: dtolnay/rust-toolchain@stable
       - name: Install @napi-rs/cli
         run: npm i -g @napi-rs/cli
       - name: Install JS deps (skip scripts)
-        run: npm ci --ignore-scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Build native module (release)
         run: napi build --release
       - name: Debug refs
