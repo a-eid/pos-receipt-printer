@@ -9,7 +9,7 @@ crate-type = ["cdylib"]
 [dependencies]
 napi = { version = "2", features = ["tokio_rt"] }
 napi-derive = "2"
-escpos-rs = { git = "https://github.com/fabienbellanger/escpos-rs" }
+escpos = { git = "https://github.com/fabienbellanger/escpos-rs", rev = "78a6302", features = ["full"] }
 serialport = "4.7"
 image = "0.24"
 imageproc = "0.23"
