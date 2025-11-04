@@ -4,6 +4,15 @@
   "description": "ESC/POS receipt printing (serial) with Arabic shaping for Electron/Node",
   "main": "index.js",
   "types": "index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/a-eid/pos-receipt-printer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/a-eid/pos-receipt-printer/issues"
+  },
+  "homepage": "https://github.com/a-eid/pos-receipt-printer#readme",
+  "author": "Ahmed Eid",
   "files": [
     "index.js",
     "index.d.ts",
