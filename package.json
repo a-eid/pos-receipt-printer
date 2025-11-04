@@ -1,8 +1,8 @@
 {
   "name": "pos-receipt-printer",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "ESC/POS receipt printing (serial) with Arabic shaping for Electron/Node",
-  "main": "dist/index.js",
+  "main": "lib/index.js",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/a-eid/pos-receipt-printer.git"
