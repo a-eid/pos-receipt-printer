@@ -11,9 +11,9 @@ napi = { version = "2", features = ["tokio_rt"] }
 napi-derive = "2"
 escpos = { git = "https://github.com/fabienbellanger/escpos-rs", rev = "78a6302", features = ["full"] }
 serialport = "4.7"
-image = "0.24"
-imageproc = "0.25"
-rusttype = "0.9"
+image = "0.24.9"
+imageproc = "0.23"
+rusttype = "0.9.3"
 ar-reshaper = "1.5"
 serde = { version = "1.0", features = ["derive"] }
 

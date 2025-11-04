@@ -105,43 +105,35 @@ impl Default for Layout {
 }
 
 // ====== Frontend payload (Node) ======
-#[derive(Deserialize, Clone)]
-#[serde(untagged)]
-enum Qty { Str(String), Num(f64) }
-impl Qty {
-    fn to_display(self) -> String {
-        match self { Qty::Str(s) => s, Qty::Num(n) => n.to_string() }
-    }
+// JS-facing, napi will convert JS objects into these Rust structs.
+#[napi(object)]
+pub struct JsItem {
+    pub name: String,
+    // accept qty as string in JS to keep conversion simple (you can change to f64 if you prefer)
+    pub qty: String,
+    pub price: f64,
+    pub total: f64,
 }
-#[derive(Deserialize, Clone)]
-struct FrontendItem {
-    name: String,
-    qty: Qty,
-    price: f32,
-    total: f32,
+
+#[napi(object)]
+pub struct JsFooter {
+    pub address: String,
+    #[napi(js_name = "lastLine")]
+    pub last_line: String,
+    pub phones: Option<String>,
 }
-#[derive(Deserialize, Clone)]
-struct FrontendFooter {
-    address: String,
-    #[serde(alias = "last line", alias = "lastLine")]
-    last_line: String,
-    #[serde(default)]
-    phones: Option<String>,
-}
-#[derive(Deserialize, Clone)]
-struct PrintPayload {
-    title: String,
-    time: String,
-    number: String,
-    items: Vec<FrontendItem>,
-    total: f32,
-    #[serde(default)]
-    discount: Option<f32>,
-    footer: FrontendFooter,
-    #[serde(default)]
-    port: Option<String>,
-    #[serde(default)]
-    baud: Option<u32>,
+
+#[napi(object)]
+pub struct JsPrintPayload {
+    pub title: String,
+    pub time: String,
+    pub number: String,
+    pub items: Vec<JsItem>,
+    pub total: f64,
+    pub discount: Option<f64>,
+    pub footer: JsFooter,
+    pub port: Option<String>,
+    pub baud: Option<u32>,
 }
 
 // ====== Arabic shaping + drawing ======
@@ -383,59 +375,64 @@ fn pack_esc_star_24(gray: &GrayImage, y0: u32, threshold: u8) -> Vec<u8> {
 }
 
 // ====== N-API entrypoint ======
-#[napi]
-pub async fn print_receipt(payload: Object) -> Result<String> {
-    // Deserialize from JS
-    let pl: PrintPayload = napi::bindgen_prelude::from_value(payload)?;
-
-    let items: Vec<Item> = pl.items.into_iter()
-        .map(|i| Item { name: i.name, qty_str: i.qty.to_display(), price: i.price, total: i.total })
+#[napi(js_name = "printReceipt")]
+pub async fn print_receipt(payload: JsPrintPayload) -> Result<String> {
+    // Convert JS-facing payload into pure Rust data synchronously.
+    let items: Vec<Item> = payload.items.into_iter()
+        .map(|i| Item { name: i.name, qty_str: i.qty, price: i.price as f32, total: i.total as f32 })
         .collect();
 
     let data = ReceiptData {
-        store_name: pl.title,
-        date_time_line: pl.time,
-        invoice_no: pl.number,
+        store_name: payload.title,
+        date_time_line: payload.time,
+        invoice_no: payload.number,
         items,
-        discount: pl.discount.unwrap_or(0.0),
-        total: pl.total,
-        footer_address: pl.footer.address,
-        footer_delivery: pl.footer.last_line,
-        footer_phones: pl.footer.phones.unwrap_or_default(),
+        discount: payload.discount.unwrap_or(0.0) as f32,
+        total: payload.total as f32,
+        footer_address: payload.footer.address,
+        footer_delivery: payload.footer.last_line,
+        footer_phones: payload.footer.phones.unwrap_or_default(),
     };
 
     let layout = Layout::default();
+    let port = env_port_or_default(payload.port);
+    let baud = env_baud_or_default(payload.baud);
 
-    let port = env_port_or_default(pl.port);
-    let baud = env_baud_or_default(pl.baud);
+    // Run blocking serial + rendering work in a blocking task so the future is Send.
+    let port_clone = port.clone();
+    let res = tokio::task::spawn_blocking(move || -> Result<String> {
+        let driver = SerialPortDriver::open(&port_clone, baud, None)
+            .map_err(|e| Error::from_reason(format!("open {} @{}: {}", port_clone, baud, e)))?;
 
-    let driver = SerialPortDriver::open(&port, baud, None)
-        .map_err(|e| Error::from_reason(format!("open {} @{}: {}", port, baud, e)))?;
+        let mut obj = Printer::new(driver, Protocol::default(), None);
+        obj.debug_mode(None);
+        let mut p = obj.init().map_err(|e| Error::from_reason(e.to_string()))?;
 
-    let mut obj = Printer::new(driver, Protocol::default(), None);
-    obj.debug_mode(None);
-    let mut p = obj.init().map_err(|e| Error::from_reason(e.to_string()))?;
+        let gray = render_receipt(&data, &layout);
 
-    let gray = render_receipt(&data, &layout);
+        // ESC * 24-dot double density
+        let w = gray.width();
+        let n = w as u16;
+        let nL = (n & 0xFF) as u8;
+        let nH = ((n >> 8) & 0xFF) as u8;
 
-    // ESC * 24-dot double density
-    let w = gray.width();
-    let n = w as u16;
-    let nL = (n & 0xFF) as u8;
-    let nH = ((n >> 8) & 0xFF) as u8;
+        let mut y0 = 0u32;
+        while y0 < gray.height() {
+            let band = pack_esc_star_24(&gray, y0, layout.threshold);
+            p = p.custom(&[0x1B, 0x2A, 33, nL, nH]).map_err(|e| Error::from_reason(e.to_string()))?;
+            p = p.custom(&band).map_err(|e| Error::from_reason(e.to_string()))?;
+            p = p.custom(&[0x0A]).map_err(|e| Error::from_reason(e.to_string()))?;
+            y0 += 24;
+        }
 
-    let mut y0 = 0u32;
-    while y0 < gray.height() {
-        let band = pack_esc_star_24(&gray, y0, layout.threshold);
-        p = p.custom(&[0x1B, 0x2A, 33, nL, nH]).map_err(|e| Error::from_reason(e.to_string()))?;
-        p = p.custom(&band).map_err(|e| Error::from_reason(e.to_string()))?;
         p = p.custom(&[0x0A]).map_err(|e| Error::from_reason(e.to_string()))?;
-        y0 += 24;
-    }
+        p = p.print_cut().map_err(|e| Error::from_reason(e.to_string()))?;
+        p.print().map_err(|e| Error::from_reason(e.to_string()))?;
 
-    p = p.custom(&[0x0A]).map_err(|e| Error::from_reason(e.to_string()))?;
-    p = p.print_cut().map_err(|e| Error::from_reason(e.to_string()))?;
-    p.print().map_err(|e| Error::from_reason(e.to_string()))?;
+        Ok(format!("✅ Receipt printed on {}", port_clone))
+    })
+    .await
+    .map_err(|e| Error::from_reason(format!("join error: {}", e)))??;
 
-    Ok(format!("✅ Receipt printed on {}", port))
+    Ok(res)
 }
