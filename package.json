@@ -2,8 +2,7 @@
   "name": "pos-receipt-printer",
   "version": "0.1.0",
   "description": "ESC/POS receipt printing (serial) with Arabic shaping for Electron/Node",
-  "main": "index.js",
-  "types": "index.d.ts",
+  "main": "dist/index.js",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/a-eid/pos-receipt-printer.git"
@@ -14,15 +13,14 @@
   "homepage": "https://github.com/a-eid/pos-receipt-printer#readme",
   "author": "Ahmed Eid",
   "files": [
-    "index.js",
-    "index.d.ts",
-    "pos_receipt_printer.*.node"
+    "dist/**",
+    "scripts/download-binary.js",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
-    "build": "napi build --release",
-    "build:debug": "napi build",
-    "install": "napi install --platform --arch || napi build --release",
-    "prepublishOnly": "npm run build"
+    "build:ci": "napi build --release",
+    "postinstall": "node scripts/download-binary.js"
   },
   "engines": { "node": ">=20" },
   "os": ["win32", "darwin", "linux"],

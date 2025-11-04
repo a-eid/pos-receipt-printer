@@ -2,42 +2,52 @@ name: build-and-release-prebuilts
 on:
   push:
     tags:
-      - "v*"
+      - 'v*.*.*'
+
+permissions:
+  contents: write
 
 jobs:
   build:
     name: build ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           # Windows x64
           - os: windows-latest
-            build: "napi build --release --target x86_64"
+            artifact_name: pos-receipt-printer-win32-x64.node
           # macOS Apple Silicon
           - os: macos-latest
-            build: "napi build --release --target aarch64"
-          # macOS Intel (optional but handy for older Macs)
+            artifact_name: pos-receipt-printer-darwin-arm64.node
+          # macOS Intel
           - os: macos-13
-            build: "napi build --release --target x86_64"
-          # Linux x64 (most servers)
+            artifact_name: pos-receipt-printer-darwin-x64.node
+          # Linux x64 (glibc)
           - os: ubuntu-latest
-            build: "napi build --release --target x86_64"
+            artifact_name: pos-receipt-printer-linux-x64-gnu.node
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
       - uses: dtolnay/rust-toolchain@stable
-      - run: npm i -g @napi-rs/cli
-      - run: npm ci
-      - run: ${{ matrix.build }}
-      - name: List artifacts
-        run: ls -al
+      - name: Install @napi-rs/cli
+        run: npm i -g @napi-rs/cli
+      - name: Install JS deps (skip scripts)
+        run: npm ci --ignore-scripts
+      - name: Build native module (release)
+        run: napi build --release
+      - name: Rename artifact to expected name
+        env:
+          ARTIFACT_NAME: ${{ matrix.artifact_name }}
+        run: |
+          node -e "const fs=require('fs');const f=fs.readdirSync('.').find(n=>n.endsWith('.node'));if(!f){console.error('No .node found in project root');process.exit(1);}fs.copyFileSync(f, process.env.ARTIFACT_NAME);console.log('Copied', f, '->', process.env.ARTIFACT_NAME);"
       - name: Upload assets to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            pos_receipt_printer.*.node
+            ${{ matrix.artifact_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

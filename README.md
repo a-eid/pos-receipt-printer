@@ -14,16 +14,17 @@ ESC/POS receipt printing (serial) with Arabic shaping for Electron/Node.js
 ## Installation
 
 ```bash
-npm install github:a-eid/pos-receipt-printer#v0.1.0
+# Replace vX.Y.Z with the tagged version you want
+npm install github:a-eid/pos-receipt-printer#vX.Y.Z
 ```
 
 Or with pnpm:
 
 ```bash
-pnpm add github:a-eid/pos-receipt-printer#v0.1.0
+pnpm add github:a-eid/pos-receipt-printer#vX.Y.Z
 ```
 
-The install script will automatically download the pre-built binary for your platform from GitHub Releases. If no pre-built binary is available, it will attempt to build from source (requires Rust).
+During install, a postinstall script downloads the pre-built binary for your platform from the GitHub Release that matches the package version. Local compilation is intentionally disabled; if a matching binary is not available, installation will fail with a clear error message.
 
 ### Supported Platforms
 
@@ -132,18 +133,9 @@ interface Footer {
 - Rust toolchain (install from [rustup.rs](https://rustup.rs/))
 - pnpm (recommended) or npm
 
-### Build from Source
+### Build in CI
 
-```bash
-# Install dependencies
-pnpm install
-
-# Build release binary
-pnpm build
-
-# Or build debug binary
-pnpm build:debug
-```
+All official binaries are built in GitHub Actions when pushing a tag. Artifacts are attached to the corresponding GitHub Release.
 
 ### Create a Release
 
@@ -156,26 +148,24 @@ git push origin main --tags
 ```
 
 3. GitHub Actions will automatically:
-   - Build binaries for Windows, macOS (Intel & ARM), and Linux
-   - Create a GitHub Release
-   - Attach all pre-built `.node` binaries to the release
+  - Build binaries for Windows, macOS (Intel & ARM), and Linux
+  - Attach all pre-built `.node` binaries to the GitHub Release
 
 ### Testing Locally
 
-```bash
-# Build the native module
-pnpm build
+For contributors developing this repository, you can still build locally:
 
-# Run your test script
-node examples/usage.js
+```bash
+pnpm i --ignore-scripts
+pnpm run build:ci
 ```
 
 ## How It Works
 
 1. **CI/CD Pipeline**: When you push a tag (e.g., `v0.1.0`), GitHub Actions builds native binaries for all platforms
 2. **Release Assets**: The `.node` binaries are automatically attached to the GitHub Release
-3. **Installation**: When users install from GitHub, `@napi-rs/cli` downloads the matching pre-built binary
-4. **Fallback**: If no pre-built binary exists, it compiles from source locally
+3. **Installation**: When users install from GitHub, a postinstall script downloads the matching pre-built binary
+4. **No Local Builds**: If no pre-built binary exists for the user’s platform, installation fails explicitly (no local compilation).
 
 ## Troubleshooting
 
