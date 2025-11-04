@@ -48,7 +48,7 @@ function getReleaseTag() {
 
 function getDownloadUrl() {
 	const tag = getReleaseTag();
-	return `https://github.com/a-eid/pos-receipt-printer/releases/download/v${tag}/pos-receipt-printer-win32-x64.node`;
+	return `https://github.com/a-eid/pos-receipt-printer/releases/download/${tag}/pos-receipt-printer-win32-x64.node`;
 }
 
 // /${asset}
