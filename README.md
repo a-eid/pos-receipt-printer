@@ -29,9 +29,6 @@ During install, a postinstall script downloads the pre-built binary for your pla
 ### Supported Platforms
 
 - ✅ Windows x64
-- ✅ macOS Apple Silicon (ARM64)
-- ✅ macOS Intel (x64)
-- ✅ Linux x64
 
 ## Usage
 

@@ -4,7 +4,7 @@ use napi_derive::napi;
 use escpos::{driver::SerialPortDriver, printer::Printer, utils::*};
 use image::{ImageBuffer, Rgb, RgbImage, GrayImage, Luma};
 use imageproc::drawing::{draw_text_mut, text_size};
-use ab_glyph::{FontRef, PxScale};
+use rusttype::{Font, Scale};
 use ar_reshaper::reshape_line;
 use serde::Deserialize;
 
@@ -146,13 +146,13 @@ struct PrintPayload {
 
 // ====== Arabic shaping + drawing ======
 fn shape(s: &str) -> String { reshape_line(s) }
-fn draw_crisp(img: &mut RgbImage, s: &str, x: i32, y: i32, scale: PxScale, font: &FontRef) {
+fn draw_crisp(img: &mut RgbImage, s: &str, x: i32, y: i32, scale: Scale, font: &Font) {
     draw_text_mut(img, Rgb([0,0,0]), x, y, scale, font, s);
 }
 fn is_ltr_char(c: char) -> bool {
     c.is_ascii() || ('\u{0660}'..='\u{0669}').contains(&c) || ('\u{06F0}'..='\u{06F9}').contains(&c) || ":./-–—,".contains(c)
 }
-fn draw_mixed_rtl_right(img: &mut RgbImage, font: &FontRef, scale: PxScale, logical: &str, x_right: i32, y: i32) {
+fn draw_mixed_rtl_right(img: &mut RgbImage, font: &Font, scale: Scale, logical: &str, x_right: i32, y: i32) {
     let shaped = shape(logical);
     let mut runs: Vec<(bool, String, i32)> = Vec::new();
     let mut cur = String::new();
@@ -198,7 +198,7 @@ fn draw_mixed_rtl_right(img: &mut RgbImage, font: &FontRef, scale: PxScale, logi
         if right < x_right - total_w { break; }
     }
 }
-fn draw_mixed_rtl_center(img: &mut RgbImage, font: &FontRef, scale: PxScale, logical: &str, paper_w: i32, y: i32) {
+fn draw_mixed_rtl_center(img: &mut RgbImage, font: &Font, scale: Scale, logical: &str, paper_w: i32, y: i32) {
     let shaped = shape(logical);
     let mut runs: Vec<(bool, String, i32)> = Vec::new();
     let mut cur = String::new();
@@ -240,11 +240,11 @@ fn draw_mixed_rtl_center(img: &mut RgbImage, font: &FontRef, scale: PxScale, log
         right -= w;
     }
 }
-fn draw_ltr_right(img: &mut RgbImage, font: &FontRef, scale: PxScale, s: &str, x_right: i32, y: i32) {
+fn draw_ltr_right(img: &mut RgbImage, font: &Font, scale: Scale, s: &str, x_right: i32, y: i32) {
     let (w, _) = text_size(scale, font, s);
     draw_crisp(img, s, x_right - w as i32, y, scale, font);
 }
-fn draw_ltr_center(img: &mut RgbImage, font: &FontRef, scale: PxScale, s: &str, paper_w: i32, y: i32) {
+fn draw_ltr_center(img: &mut RgbImage, font: &Font, scale: Scale, s: &str, paper_w: i32, y: i32) {
     let (w, _) = text_size(scale, font, s);
     let x = (paper_w - w as i32) / 2;
     draw_crisp(img, s, x, y, scale, font);
@@ -269,19 +269,19 @@ fn render_receipt(data: &ReceiptData, layout: &Layout) -> GrayImage {
     let right_edge = margin_h + inner_w;
     let mut y = layout.margin_top;
 
-    let font_bytes = include_bytes!("../fonts/NotoSansArabic-Regular.ttf");
-    let font = FontRef::try_from_slice(font_bytes).expect("font");
+    let font_bytes = include_bytes!("fonts/NotoSansArabic-Regular.ttf");
+    let font = Font::try_from_bytes(font_bytes).expect("font");
 
     // Title
-    draw_mixed_rtl_center(&mut img, &font, PxScale::from(layout.fonts.title), &data.store_name, paper_w, y);
+    draw_mixed_rtl_center(&mut img, &font, Scale::uniform(layout.fonts.title), &data.store_name, paper_w, y);
     y += layout.fonts.title as i32 - 8;
 
     // Date/Time
-    draw_mixed_rtl_center(&mut img, &font, PxScale::from(layout.fonts.header_dt), &data.date_time_line, paper_w, y);
+    draw_mixed_rtl_center(&mut img, &font, Scale::uniform(layout.fonts.header_dt), &data.date_time_line, paper_w, y);
     y += layout.fonts.header_dt as i32 + 2;
 
     // Receipt number
-    draw_ltr_center(&mut img, &font, PxScale::from(layout.fonts.header_no), &data.invoice_no, paper_w, y);
+    draw_ltr_center(&mut img, &font, Scale::uniform(layout.fonts.header_no), &data.invoice_no, paper_w, y);
     y += layout.fonts.header_no as i32 + 2;
 
     // Columns (RTL)
@@ -296,7 +296,7 @@ fn render_receipt(data: &ReceiptData, layout: &Layout) -> GrayImage {
     let r_total = r_price - w_total;
 
     // Headings
-    let s_head = PxScale::from(layout.fonts.header_cols);
+    let s_head = Scale::uniform(layout.fonts.header_cols);
     draw_mixed_rtl_right(&mut img, &font, s_head, "الصنف",  r_name,  y);
     draw_mixed_rtl_right(&mut img, &font, s_head, "الكمية", r_qty,   y);
     draw_mixed_rtl_right(&mut img, &font, s_head, "السعر",  r_price, y);
@@ -304,7 +304,7 @@ fn render_receipt(data: &ReceiptData, layout: &Layout) -> GrayImage {
     y += layout.row_gap - 6;
 
     // Rows
-    let s_item = PxScale::from(layout.fonts.item);
+    let s_item = Scale::uniform(layout.fonts.item);
     for it in &data.items {
         draw_mixed_rtl_right(&mut img, &font, s_item, &it.name,   r_name,  y);
         draw_ltr_right(&mut img,      &font, s_item, &it.qty_str, r_qty,   y);
@@ -322,33 +322,33 @@ fn render_receipt(data: &ReceiptData, layout: &Layout) -> GrayImage {
     if data.discount > 0.0001 {
         let gap = 12;
         let label = "الخصم";
-        let (lw, _) = text_size(PxScale::from(layout.fonts.total_label), &font, &shape(label));
+        let (lw, _) = text_size(Scale::uniform(layout.fonts.total_label), &font, &shape(label));
         let right = right_edge;
-        draw_ltr_right(&mut img, &font, PxScale::from(layout.fonts.total_label),
+        draw_ltr_right(&mut img, &font, Scale::uniform(layout.fonts.total_label),
                        &format!("{:.2}", data.discount), right - lw as i32 - gap, y);
-        draw_mixed_rtl_right(&mut img, &font, PxScale::from(layout.fonts.total_label), label, right, y);
+        draw_mixed_rtl_right(&mut img, &font, Scale::uniform(layout.fonts.total_label), label, right, y);
         y += layout.row_gap - 6;
     }
 
     // Grand total
     let gap = 12;
     let label = "إجمالي الفاتورة";
-    let (lw, _) = text_size(PxScale::from(layout.fonts.total_label), &font, &shape(label));
+    let (lw, _) = text_size(Scale::uniform(layout.fonts.total_label), &font, &shape(label));
     let right = right_edge;
-    draw_ltr_right(&mut img, &font, PxScale::from(layout.fonts.total_value),
+    draw_ltr_right(&mut img, &font, Scale::uniform(layout.fonts.total_value),
                    &format!("{:.2}", data.total), right - lw as i32 - gap, y - 10);
-    draw_mixed_rtl_right(&mut img, &font, PxScale::from(layout.fonts.total_label), label, right, y);
+    draw_mixed_rtl_right(&mut img, &font, Scale::uniform(layout.fonts.total_label), label, right, y);
     y += layout.row_gap;
 
     // Footer
-    draw_mixed_rtl_center(&mut img, &font, PxScale::from(layout.fonts.footer), &data.footer_address,  paper_w, y);
+    draw_mixed_rtl_center(&mut img, &font, Scale::uniform(layout.fonts.footer), &data.footer_address,  paper_w, y);
     y += layout.fonts.footer as i32 + 2;
 
-    draw_mixed_rtl_center(&mut img, &font, PxScale::from(layout.fonts.footer), &data.footer_delivery, paper_w, y);
+    draw_mixed_rtl_center(&mut img, &font, Scale::uniform(layout.fonts.footer), &data.footer_delivery, paper_w, y);
     y += layout.fonts.footer as i32 + 2;
 
     if !data.footer_phones.is_empty() {
-        draw_ltr_center(&mut img, &font, PxScale::from(layout.fonts.footer_phones), &data.footer_phones, paper_w, y);
+        draw_ltr_center(&mut img, &font, Scale::uniform(layout.fonts.footer_phones), &data.footer_phones, paper_w, y);
         y += layout.fonts.footer_phones as i32 + 2; // include phones in crop
     }
 
@@ -384,9 +384,9 @@ fn pack_esc_star_24(gray: &GrayImage, y0: u32, threshold: u8) -> Vec<u8> {
 
 // ====== N-API entrypoint ======
 #[napi]
-pub async fn print_receipt(payload: JsObject) -> Result<String> {
+pub async fn print_receipt(payload: Object) -> Result<String> {
     // Deserialize from JS
-    let pl: PrintPayload = napi::env::from_js_value(payload.into_unknown())?;
+    let pl: PrintPayload = napi::bindgen_prelude::from_value(payload)?;
 
     let items: Vec<Item> = pl.items.into_iter()
         .map(|i| Item { name: i.name, qty_str: i.qty.to_display(), price: i.price, total: i.total })
