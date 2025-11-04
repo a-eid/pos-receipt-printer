@@ -14,7 +14,7 @@ serialport = "4.7"
 image = "0.24"
 imageproc = "0.23"
 ab_glyph = "0.2"
-ar-reshaper = "0.5"
+ar-reshaper = "1.5"
 serde = { version = "1.0", features = ["derive"] }
 
 [build-dependencies]
