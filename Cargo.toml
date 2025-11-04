@@ -7,8 +7,8 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-napi = { version = "2", features = ["tokio_rt"] }
-napi-derive = "2"
+napi = { version = "2.16.17", features = ["tokio_rt"] }
+napi-derive = "2.16.12"
 escpos = { git = "https://github.com/fabienbellanger/escpos-rs", rev = "78a6302", features = ["full"] }
 serialport = "4.7"
 image = "0.24.9"

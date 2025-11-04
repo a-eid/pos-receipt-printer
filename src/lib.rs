@@ -400,7 +400,7 @@ pub async fn print_receipt(payload: JsPrintPayload) -> Result<String> {
 
     // Run blocking serial + rendering work in a blocking task so the future is Send.
     let port_clone = port.clone();
-    let res = tokio::task::spawn_blocking(move || -> Result<String> {
+    let res = napi::tokio::task::spawn_blocking(move || -> Result<String> {
         let driver = SerialPortDriver::open(&port_clone, baud, None)
             .map_err(|e| Error::from_reason(format!("open {} @{}: {}", port_clone, baud, e)))?;
 
@@ -432,7 +432,7 @@ pub async fn print_receipt(payload: JsPrintPayload) -> Result<String> {
         Ok(format!("✅ Receipt printed on {}", port_clone))
     })
     .await
-    .map_err(|e| Error::from_reason(format!("join error: {}", e)))??;
+    .map_err(|e| napi::Error::from_reason(format!("join error: {e}")))??;
 
     Ok(res)
 }
