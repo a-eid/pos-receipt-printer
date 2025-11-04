@@ -1,6 +1,6 @@
 {
   "name": "pos-receipt-printer",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "ESC/POS receipt printing (serial) with Arabic shaping for Electron/Node",
   "main": "lib/index.js",
   "types": "dist/index.d.ts",
