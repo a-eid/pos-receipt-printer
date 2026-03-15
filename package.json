@@ -20,7 +20,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build:ci": "napi build --release",
+    "build:ci": "napi build --release --dts napi-binding.d.ts",
     "postinstall": "node scripts/download-binary.js"
   },
   "engines": {
