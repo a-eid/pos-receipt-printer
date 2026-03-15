@@ -56,6 +56,7 @@ struct ReceiptData {
     footer_address: String,
     footer_delivery: String,
     footer_phones: String,
+    uuid: Option<String>,
 }
 
 #[derive(Clone)]
@@ -130,6 +131,7 @@ pub struct JsPrintPayload {
     pub total: f64,
     pub discount: Option<f64>,
     pub footer: JsFooter,
+    pub uuid: Option<String>,
     pub port: Option<String>,
     pub baud: Option<u32>,
 }
@@ -419,6 +421,7 @@ pub async fn print_receipt(payload: JsPrintPayload) -> Result<String> {
         footer_address: payload.footer.address,
         footer_delivery: payload.footer.last_line,
         footer_phones: payload.footer.phones.unwrap_or_default(),
+        uuid: payload.uuid,
     };
 
     let layout = Layout::default();
@@ -449,6 +452,43 @@ pub async fn print_receipt(payload: JsPrintPayload) -> Result<String> {
             p = p.custom(&band).map_err(|e| Error::from_reason(e.to_string()))?;
             p = p.custom(&[0x0A]).map_err(|e| Error::from_reason(e.to_string()))?;
             y0 += 24;
+        }
+
+        // Print optional UUID as a 1D Barcode (Code 128)
+        if let Some(uuid_str) = data.uuid {
+            p = p.custom(&[0x0A, 0x0A]).map_err(|e| Error::from_reason(e.to_string()))?; // Margin before barcode
+            
+            // Align Center
+            p = p.custom(&[0x1B, 0x61, 0x01]).map_err(|e| Error::from_reason(e.to_string()))?;
+            
+            // Barcode Height: 40 dots
+            p = p.custom(&[0x1D, 0x68, 40]).map_err(|e| Error::from_reason(e.to_string()))?;
+            // Barcode Width Multiplier: 2 (compact width)
+            p = p.custom(&[0x1D, 0x77, 2]).map_err(|e| Error::from_reason(e.to_string()))?;
+            // HRI Character Print Position: Below Barcode
+            p = p.custom(&[0x1D, 0x48, 0x02]).map_err(|e| Error::from_reason(e.to_string()))?;
+            
+            // Print Barcode: GS k <type: 73 for Code 128> <length> <data>
+            // Note: Code 128 requires subset character at start (e.g. {B for Subset B)
+            // {B in ASCII is `{` (123) and `B` (66)
+            let mut barcode_data = Vec::new();
+            barcode_data.push(0x1D);
+            barcode_data.push(0x6B);
+            barcode_data.push(73); // Code 128
+            
+            let mut payload_bytes = Vec::new();
+            payload_bytes.push(123); // {
+            payload_bytes.push(66);  // B
+            payload_bytes.extend_from_slice(uuid_str.as_bytes());
+            
+            // Barcode system expects the payload length for type 73
+            barcode_data.push(payload_bytes.len() as u8);
+            barcode_data.extend(payload_bytes);
+            
+            p = p.custom(&barcode_data).map_err(|e| Error::from_reason(e.to_string()))?;
+            
+            // Reset Alignment to Left
+            p = p.custom(&[0x1B, 0x61, 0x00]).map_err(|e| Error::from_reason(e.to_string()))?;
         }
 
         p = p.custom(&[0x0A]).map_err(|e| Error::from_reason(e.to_string()))?;
