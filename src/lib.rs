@@ -115,6 +115,7 @@ pub struct JsItem {
     pub qty: String, // keep as string for stability
     pub price: f64,
     pub total: f64,
+    #[napi(js_name = "originalPrice")]
     pub original_price: Option<f64>,
 }
 #[napi(object)]
