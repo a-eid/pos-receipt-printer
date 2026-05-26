@@ -1,0 +1,39 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "zai-coding-plan/glm-5.1",
+
+  "instructions": ["docs", ".agent", "context"],
+
+  "formatter": {
+    "biome": {
+      "command": ["npx", "@biomejs/biome", "check", "--write", "$FILE"],
+      "extensions": [".js", ".jsx", ".ts", ".tsx", ".json", ".jsonc"]
+    }
+  },
+
+  "watcher": {
+    "ignore": ["node_modules/**", ".pnpm-store/**", "**/dist/**", "**/build/**", ".expo/**", "web-build/**", ".git/**", "*.sqlite", "*.sqlite-journal"]
+  },
+
+  "permission": {
+    "edit": "allow",
+    "bash": {
+      "*": "ask"
+    }
+  },
+
+  "agent": {
+    "oracle": {
+      "model": "zai-coding-plan/glm-5.1"
+    },
+    "momus": {
+      "model": "zai-coding-plan/glm-5.1"
+    },
+    "*": {
+      "model": "zai-coding-plan/glm-5.1"
+    }
+  },
+
+  "snapshot": true,
+  "autoupdate": true
+}

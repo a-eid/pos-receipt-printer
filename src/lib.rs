@@ -43,6 +43,7 @@ struct Item {
     qty_str: String,
     price: f32,
     total: f32,
+    original_price: Option<f32>,
 }
 
 #[derive(Clone)]
@@ -114,6 +115,7 @@ pub struct JsItem {
     pub qty: String, // keep as string for stability
     pub price: f64,
     pub total: f64,
+    pub original_price: Option<f64>,
 }
 #[napi(object)]
 pub struct JsFooter {
@@ -161,6 +163,15 @@ fn draw_crisp(img: &mut RgbImage, s: &str, x: i32, y: i32, scale: Scale, font: &
     draw_text_mut(img, Rgb([0,0,0]), x, y, scale, font, s);
 }
 
+fn draw_gray(img: &mut RgbImage, s: &str, x: i32, y: i32, scale: Scale, font: &Font) {
+    draw_text_mut(img, Rgb([170,170,170]), x, y, scale, font, s);
+}
+
+fn draw_gray_ltr_right(img: &mut RgbImage, font: &Font, scale: Scale, s: &str, x_right: i32, y: i32) {
+    let w = measure(scale, font, s);
+    draw_gray(img, s, x_right - w, y, scale, font);
+}
+
 fn draw_ltr_right(img: &mut RgbImage, font: &Font, scale: Scale, s: &str, x_right: i32, y: i32) {
     let w = measure(scale, font, s);
     draw_crisp(img, s, x_right - w, y, scale, font);
@@ -204,6 +215,43 @@ fn draw_mixed_rtl_right(img: &mut RgbImage, font: &Font, scale: Scale, logical: 
                 let s = ch.to_string();
                 let cw = measure(scale, font, &s);
                 draw_crisp(img, &s, x, y, scale, font);
+                x += cw;
+            }
+        }
+        right -= seg_w;
+    }
+}
+
+// Gray variant of draw_mixed_rtl_right for discount annotations
+fn draw_mixed_rtl_right_gray(img: &mut RgbImage, font: &Font, scale: Scale, logical: &str, x_right: i32, y: i32) {
+    let shaped = shape(logical);
+    let mut runs: Vec<(bool, String)> = Vec::new();
+    let mut cur = String::new();
+    let mut cur_is_ltr: Option<bool> = None;
+
+    for ch in shaped.chars() {
+        let is_space = ch == ' ' || ch == '\u{00A0}';
+        let ltr = if is_space { cur_is_ltr.unwrap_or(false) } else { is_ltr_char(ch) };
+        match cur_is_ltr {
+            None => { cur_is_ltr = Some(ltr); cur.push(ch); }
+            Some(kind) if kind == ltr || is_space => cur.push(ch),
+            Some(_) => { runs.push((cur_is_ltr.unwrap(), cur.clone())); cur.clear(); cur_is_ltr = Some(ltr); cur.push(ch); }
+        }
+    }
+    if !cur.is_empty() { runs.push((cur_is_ltr.unwrap_or(false), cur)); }
+
+    let mut right = x_right;
+
+    for (is_ltr, seg) in runs.into_iter() {
+        let seg_w = measure(scale, font, &seg);
+        if is_ltr {
+            draw_gray_ltr_right(img, font, scale, &seg, right, y);
+        } else {
+            let mut x = right - seg_w;
+            for ch in seg.chars().rev() {
+                let s = ch.to_string();
+                let cw = measure(scale, font, &s);
+                draw_gray(img, &s, x, y, scale, font);
                 x += cw;
             }
         }
@@ -271,7 +319,7 @@ fn wrap_mixed_rtl(font: &Font, scale: Scale, logical: &str, max_w: i32) -> Vec<S
 // ===================== Rendering =====================
 fn render_receipt(data: &ReceiptData, layout: &Layout) -> GrayImage {
     let paper_w = layout.paper_width_px as i32;
-    let mut img: RgbImage = ImageBuffer::from_pixel(layout.paper_width_px, 2000, Rgb([255,255,255]));
+    let mut img: RgbImage = ImageBuffer::from_pixel(layout.paper_width_px, 2500, Rgb([255,255,255]));
     let margin_h = layout.margin_h;
     let inner_w = paper_w - margin_h*2;
     let right_edge = margin_h + inner_w;
@@ -313,6 +361,7 @@ fn render_receipt(data: &ReceiptData, layout: &Layout) -> GrayImage {
 
     // Rows with wrapping (max 2 lines for name)
     let s_item = Scale::uniform(layout.fonts.item);
+    let s_discount = Scale::uniform(layout.fonts.item * 0.82);
     for it in &data.items {
         let lines = wrap_mixed_rtl(&font, s_item, &it.name, w_name).into_iter().take(2).collect::<Vec<_>>();
         let line_count = lines.len().max(1);
@@ -320,10 +369,8 @@ fn render_receipt(data: &ReceiptData, layout: &Layout) -> GrayImage {
         for (i, ln) in lines.iter().enumerate() {
             let yy = y + (i as i32) * (layout.row_gap - 4);
 
-            // Name (RTL mixed, wrapped)
             draw_mixed_rtl_right(&mut img, &font, s_item, ln, r_name, yy);
 
-            // Other columns only on the first visual line
             if i == 0 {
                 draw_ltr_right(&mut img, &font, s_item, &it.qty_str, r_qty, yy);
                 draw_ltr_right(&mut img, &font, s_item, &format!("{:.2}", it.price), r_price, yy);
@@ -332,6 +379,34 @@ fn render_receipt(data: &ReceiptData, layout: &Layout) -> GrayImage {
         }
 
         y += (line_count as i32) * (layout.row_gap - 4);
+
+        if let Some(op) = it.original_price {
+            if op > it.price + 0.001 {
+                let saved = op - it.price;
+                let orig_str = format!("{:.2}", op);
+
+                draw_gray_ltr_right(&mut img, &font, s_discount, &orig_str, r_price, y);
+
+                let orig_w = measure(s_discount, &font, &orig_str);
+                let font_h = s_discount.y as i32;
+                let strike_y = (y + font_h / 2) as u32;
+                let text_left = (r_price - orig_w) as u32;
+                let text_right = r_price as u32;
+                for sx in text_left..text_right {
+                    if sx < img.width() && strike_y < img.height() {
+                        img.put_pixel(sx, strike_y, Rgb([170,170,170]));
+                        if strike_y + 1 < img.height() {
+                            img.put_pixel(sx, strike_y + 1, Rgb([170,170,170]));
+                        }
+                    }
+                }
+
+                let discount_label = format!("خصم {:.2}", saved);
+                draw_mixed_rtl_right_gray(&mut img, &font, s_discount, &discount_label, r_name, y);
+
+                y += layout.row_gap - 4;
+            }
+        }
     }
 
     // Separator
@@ -376,7 +451,7 @@ fn render_receipt(data: &ReceiptData, layout: &Layout) -> GrayImage {
     y += layout.margin_bottom;
 
     // Crop & grayscale
-    let used_h = (y as u32).min(1998);
+    let used_h = (y as u32).min(2498);
     DynamicImage::ImageRgb8(img)
         .crop_imm(0, 0, layout.paper_width_px, used_h)
         .to_luma8()
@@ -408,7 +483,7 @@ fn pack_esc_star_24(gray: &GrayImage, y0: u32, threshold: u8) -> Vec<u8> {
 pub async fn print_receipt(payload: JsPrintPayload) -> Result<String> {
     // Convert payload to internal structs
     let items: Vec<Item> = payload.items.into_iter()
-        .map(|i| Item { name: i.name, qty_str: i.qty, price: i.price as f32, total: i.total as f32 })
+        .map(|i| Item { name: i.name, qty_str: i.qty, price: i.price as f32, total: i.total as f32, original_price: i.original_price.map(|p| p as f32) })
         .collect();
 
     let data = ReceiptData {
