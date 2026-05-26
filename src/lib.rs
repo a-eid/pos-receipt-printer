@@ -110,19 +110,19 @@ impl Default for Layout {
 
 // ===================== N-API payloads =====================
 #[napi(object)]
+#[allow(non_snake_case)]
 pub struct JsItem {
     pub name: String,
     pub qty: String, // keep as string for stability
     pub price: f64,
     pub total: f64,
-    #[napi(js_name = "originalPrice")]
-    pub original_price: Option<f64>,
+    pub originalPrice: Option<f64>,
 }
 #[napi(object)]
+#[allow(non_snake_case)]
 pub struct JsFooter {
     pub address: String,
-    #[napi(js_name = "lastLine")]
-    pub last_line: String,
+    pub lastLine: String,
     pub phones: Option<String>,
 }
 #[napi(object)]
@@ -162,15 +162,6 @@ fn measure(scale: Scale, font: &Font, s: &str) -> i32 {
 
 fn draw_crisp(img: &mut RgbImage, s: &str, x: i32, y: i32, scale: Scale, font: &Font) {
     draw_text_mut(img, Rgb([0,0,0]), x, y, scale, font, s);
-}
-
-fn draw_gray(img: &mut RgbImage, s: &str, x: i32, y: i32, scale: Scale, font: &Font) {
-    draw_text_mut(img, Rgb([170,170,170]), x, y, scale, font, s);
-}
-
-fn draw_gray_ltr_right(img: &mut RgbImage, font: &Font, scale: Scale, s: &str, x_right: i32, y: i32) {
-    let w = measure(scale, font, s);
-    draw_gray(img, s, x_right - w, y, scale, font);
 }
 
 fn draw_ltr_right(img: &mut RgbImage, font: &Font, scale: Scale, s: &str, x_right: i32, y: i32) {
@@ -216,43 +207,6 @@ fn draw_mixed_rtl_right(img: &mut RgbImage, font: &Font, scale: Scale, logical: 
                 let s = ch.to_string();
                 let cw = measure(scale, font, &s);
                 draw_crisp(img, &s, x, y, scale, font);
-                x += cw;
-            }
-        }
-        right -= seg_w;
-    }
-}
-
-// Gray variant of draw_mixed_rtl_right for discount annotations
-fn draw_mixed_rtl_right_gray(img: &mut RgbImage, font: &Font, scale: Scale, logical: &str, x_right: i32, y: i32) {
-    let shaped = shape(logical);
-    let mut runs: Vec<(bool, String)> = Vec::new();
-    let mut cur = String::new();
-    let mut cur_is_ltr: Option<bool> = None;
-
-    for ch in shaped.chars() {
-        let is_space = ch == ' ' || ch == '\u{00A0}';
-        let ltr = if is_space { cur_is_ltr.unwrap_or(false) } else { is_ltr_char(ch) };
-        match cur_is_ltr {
-            None => { cur_is_ltr = Some(ltr); cur.push(ch); }
-            Some(kind) if kind == ltr || is_space => cur.push(ch),
-            Some(_) => { runs.push((cur_is_ltr.unwrap(), cur.clone())); cur.clear(); cur_is_ltr = Some(ltr); cur.push(ch); }
-        }
-    }
-    if !cur.is_empty() { runs.push((cur_is_ltr.unwrap_or(false), cur)); }
-
-    let mut right = x_right;
-
-    for (is_ltr, seg) in runs.into_iter() {
-        let seg_w = measure(scale, font, &seg);
-        if is_ltr {
-            draw_gray_ltr_right(img, font, scale, &seg, right, y);
-        } else {
-            let mut x = right - seg_w;
-            for ch in seg.chars().rev() {
-                let s = ch.to_string();
-                let cw = measure(scale, font, &s);
-                draw_gray(img, &s, x, y, scale, font);
                 x += cw;
             }
         }
@@ -386,24 +340,26 @@ fn render_receipt(data: &ReceiptData, layout: &Layout) -> GrayImage {
                 let saved = op - it.price;
                 let orig_str = format!("{:.2}", op);
 
-                draw_gray_ltr_right(&mut img, &font, s_discount, &orig_str, r_price, y);
+                draw_ltr_right(&mut img, &font, s_discount, &orig_str, r_price, y);
 
                 let orig_w = measure(s_discount, &font, &orig_str);
                 let font_h = s_discount.y as i32;
                 let strike_y = (y + font_h / 2) as u32;
                 let text_left = (r_price - orig_w) as u32;
                 let text_right = r_price as u32;
-                for sx in text_left..text_right {
+                let mut sx = text_left;
+                while sx < text_right {
                     if sx < img.width() && strike_y < img.height() {
-                        img.put_pixel(sx, strike_y, Rgb([170,170,170]));
+                        img.put_pixel(sx, strike_y, Rgb([0,0,0]));
                         if strike_y + 1 < img.height() {
-                            img.put_pixel(sx, strike_y + 1, Rgb([170,170,170]));
+                            img.put_pixel(sx, strike_y + 1, Rgb([0,0,0]));
                         }
                     }
+                    sx += 3;
                 }
 
                 let discount_label = format!("خصم {:.2}", saved);
-                draw_mixed_rtl_right_gray(&mut img, &font, s_discount, &discount_label, r_name, y);
+                draw_mixed_rtl_right(&mut img, &font, s_discount, &discount_label, r_name, y);
 
                 y += layout.row_gap - 4;
             }
@@ -484,7 +440,7 @@ fn pack_esc_star_24(gray: &GrayImage, y0: u32, threshold: u8) -> Vec<u8> {
 pub async fn print_receipt(payload: JsPrintPayload) -> Result<String> {
     // Convert payload to internal structs
     let items: Vec<Item> = payload.items.into_iter()
-        .map(|i| Item { name: i.name, qty_str: i.qty, price: i.price as f32, total: i.total as f32, original_price: i.original_price.map(|p| p as f32) })
+        .map(|i| Item { name: i.name, qty_str: i.qty, price: i.price as f32, total: i.total as f32, original_price: i.originalPrice.map(|p| p as f32) })
         .collect();
 
     let data = ReceiptData {
@@ -495,7 +451,7 @@ pub async fn print_receipt(payload: JsPrintPayload) -> Result<String> {
         discount: payload.discount.unwrap_or(0.0) as f32,
         total: payload.total as f32,
         footer_address: payload.footer.address,
-        footer_delivery: payload.footer.last_line,
+        footer_delivery: payload.footer.lastLine,
         footer_phones: payload.footer.phones.unwrap_or_default(),
         uuid: payload.uuid,
     };
@@ -567,9 +523,9 @@ pub async fn print_receipt(payload: JsPrintPayload) -> Result<String> {
             p = p.custom(&[0x1B, 0x61, 0x00]).map_err(|e| Error::from_reason(e.to_string()))?;
         }
 
-        p = p.custom(&[0x0A]).map_err(|e| Error::from_reason(e.to_string()))?;
+        // Feed 3 lines before cutting so the blade clears the last printed content
+        p = p.custom(&[0x0A, 0x0A, 0x0A]).map_err(|e| Error::from_reason(e.to_string()))?;
         p = p.print_cut().map_err(|e| Error::from_reason(e.to_string()))?;
-        p.print().map_err(|e| Error::from_reason(e.to_string()))?;
 
         Ok(format!("✅ Receipt printed on {}", port))
     })
