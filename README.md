@@ -84,9 +84,80 @@ Add to your `electron-builder` config to ensure `.node` files are not packed int
 
 ## API
 
-### `printReceipt(payload: PrintPayload): Promise<string>`
+### `print(elements: PrintElement[], options?: PrintOptions): Promise<string>` (Recommended)
 
-Prints a receipt to the specified serial port.
+Prints a receipt using composable elements. This is the recommended API for new code.
+
+```typescript
+import { print } from "pos-receipt-printer";
+
+await print([
+  { type: "text", value: "اسواق ابو عمر", style: { bold: true, align: "center", width: 2, height: 2 } },
+  { type: "text", value: "٤ نوفمبر - ٤:٠٩ صباحا", style: { align: "center" } },
+  { type: "divider" },
+  {
+    type: "table",
+    columns: [
+      { label: "الصنف", width: 0.6, align: "right" },
+      { label: "الكمية", width: 0.11, align: "center" },
+      { label: "السعر", width: 0.12, align: "right" },
+      { label: "القيمة", width: 0.17, align: "right" },
+    ],
+    rows: [
+      ["تفاح", "0.96", "70.00", "67.20"],
+      ["موز", "1 كجم", "30.00", "30.00"],
+    ],
+  },
+  { type: "divider" },
+  { type: "text", value: "الإجمالي: 97.20", style: { bold: true, align: "right" } },
+  { type: "feed", lines: 1 },
+  { type: "qrcode", value: "https://order.example.com/123", size: 6 },
+  { type: "barcode", value: "550e8400-e29b-41d4-a716-446655440000", format: "CODE128", height_dots: 40 },
+  { type: "feed", lines: 2 },
+  { type: "cut", partial: true },
+], { port: "COM7", baud: 9600 });
+```
+
+#### Element Types
+
+| Type | Description | Key Fields |
+|------|-------------|------------|
+| `text` | Text with optional styling | `value`, `style` |
+| `table` | Table with columns and rows | `columns`, `rows` |
+| `qrcode` | QR code from string | `value`, `size`, `error_correction` |
+| `barcode` | 1D barcode (Code128, EAN13, etc.) | `value`, `format`, `height_dots`, `hri` |
+| `image` | Image from file path | `path`, `width_px` |
+| `divider` | Horizontal separator line | (none) |
+| `feed` | Feed paper N lines | `lines` |
+| `cut` | Paper cut | `partial` |
+
+#### Text Style Options
+
+```typescript
+interface TextStyle {
+  font?: "A" | "B";       // Font A (default, larger) or B (smaller)
+  bold?: boolean;         // Enable bold
+  underline?: boolean;    // Enable underline
+  align?: "left" | "center" | "right";
+  width?: number;         // Width multiplier 1-8
+  height?: number;        // Height multiplier 1-8
+}
+```
+
+#### Print Options
+
+```typescript
+interface PrintOptions {
+  port?: string;          // Serial port (default: COM7 or PRINTER_COM_PORT env)
+  baud?: number;          // Baud rate (default: 9600 or PRINTER_BAUD_RATE env)
+  paper_width_px?: number; // Paper width in pixels (default: 576 for 80mm)
+  threshold?: number;     // Binarization threshold 0-255 (default: 150)
+}
+```
+
+### `printReceipt(payload: PrintPayload): Promise<string>` (Legacy)
+
+Prints a receipt using the legacy fixed-structure API. Maintained for backward compatibility.
 
 **Payload:**
 
