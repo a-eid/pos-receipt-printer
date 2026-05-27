@@ -5,8 +5,8 @@ export interface Item {
 	qty: Qty; // printed exactly as passed
 	price: number; // displayed to 2dp
 	total: number; // displayed to 2dp (no Rust calc)
-	/** Pre-discount unit price. When set and > price, a discount line is shown. */
-	originalPrice?: number;
+	/** Pre-discount unit price. Accepts string or number. When set and > price, a discount line is shown. */
+	originalPrice?: string | number;
 }
 
 export interface Footer {
