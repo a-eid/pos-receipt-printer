@@ -114,9 +114,9 @@ impl Default for Layout {
 pub struct JsItem {
     pub name: String,
     pub qty: String,
-    pub price: Either<String, f64>,
-    pub total: Either<String, f64>,
-    pub originalPrice: Option<Either<String, f64>>,
+    pub price: String,
+    pub total: String,
+    pub originalPrice: Option<String>,
 }
 #[napi(object)]
 #[allow(non_snake_case)]
@@ -131,8 +131,8 @@ pub struct JsPrintPayload {
     pub time: String,
     pub number: String,
     pub items: Vec<JsItem>,
-    pub total: Either<String, f64>,
-    pub discount: Option<Either<String, f64>>,
+    pub total: String,
+    pub discount: Option<String>,
     pub footer: JsFooter,
     pub uuid: Option<String>,
     pub port: Option<String>,
@@ -440,12 +440,9 @@ pub async fn print_receipt(payload: JsPrintPayload) -> Result<String> {
     // Convert payload to internal structs
     let items: Vec<Item> = payload.items.into_iter()
         .map(|i| {
-            let price = match i.price { Either::A(s) => s.parse::<f32>().unwrap_or(0.0), Either::B(n) => n as f32 };
-            let total = match i.total { Either::A(s) => s.parse::<f32>().unwrap_or(0.0), Either::B(n) => n as f32 };
-            let original_price = i.originalPrice.and_then(|v| match v {
-                Either::A(s) => s.parse::<f32>().ok(),
-                Either::B(n) => Some(n as f32),
-            });
+            let price = i.price.parse::<f32>().unwrap_or(0.0);
+            let total = i.total.parse::<f32>().unwrap_or(0.0);
+            let original_price = i.originalPrice.and_then(|s| s.parse::<f32>().ok());
             Item { name: i.name, qty_str: i.qty, price, total, original_price }
         })
         .collect();
@@ -455,11 +452,8 @@ pub async fn print_receipt(payload: JsPrintPayload) -> Result<String> {
         date_time_line: payload.time,
         invoice_no: payload.number,
         items,
-        discount: payload.discount.and_then(|v| match v {
-            Either::A(s) => s.parse::<f32>().ok(),
-            Either::B(n) => Some(n as f32),
-        }).unwrap_or(0.0),
-        total: match payload.total { Either::A(s) => s.parse::<f32>().unwrap_or(0.0), Either::B(n) => n as f32 },
+        discount: payload.discount.and_then(|s| s.parse::<f32>().ok()).unwrap_or(0.0),
+        total: payload.total.parse::<f32>().unwrap_or(0.0),
         footer_address: payload.footer.address,
         footer_delivery: payload.footer.lastLine,
         footer_phones: payload.footer.phones.unwrap_or_default(),

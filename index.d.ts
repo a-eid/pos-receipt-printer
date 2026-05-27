@@ -3,10 +3,10 @@ export type Qty = string | number;
 export interface Item {
 	name: string;
 	qty: Qty;
-	price: string | number;
-	total: string | number;
-	/** Pre-discount unit price. Accepts string or number. When set and > price, a discount line is shown. */
-	originalPrice?: string | number;
+	price: string;
+	total: string;
+	/** Pre-discount unit price. When set and > price, a discount line is shown. */
+	originalPrice?: string;
 }
 
 export interface Footer {
@@ -21,8 +21,8 @@ export interface PrintPayload {
 	time: string;
 	number: string;
 	items: Item[];
-	total: string | number;
-	discount?: string | number;
+	total: string;
+	discount?: string;
 	footer: Footer;
 	/** Optional UUID/nanoid to print as a 1D Code 128 barcode at the bottom */
 	uuid?: string;
