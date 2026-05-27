@@ -21,8 +21,8 @@ export interface PrintPayload {
 	time: string;
 	number: string;
 	items: Item[];
-	total: number; // printed as-is
-	discount?: number; // optional; printed if > 0
+	total: string | number;
+	discount?: string | number;
 	footer: Footer;
 	/** Optional UUID/nanoid to print as a 1D Code 128 barcode at the bottom */
 	uuid?: string;
