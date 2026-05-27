@@ -193,7 +193,6 @@ fn draw_mixed_rtl_right(img: &mut RgbImage, font: &Font, scale: Scale, logical: 
     }
     if !cur.is_empty() { runs.push((cur_is_ltr.unwrap_or(false), cur)); }
 
-    let total_w: i32 = runs.iter().map(|(_, t)| measure(scale, font, t)).sum();
     let mut right = x_right;
 
     for (is_ltr, seg) in runs.into_iter() {
@@ -344,18 +343,18 @@ fn render_receipt(data: &ReceiptData, layout: &Layout) -> GrayImage {
 
                 let orig_w = measure(s_discount, &font, &orig_str);
                 let font_h = s_discount.y as i32;
-                let strike_y = (y + font_h / 2) as u32;
+                let strike_y = (y + font_h * 2 / 5) as u32;
                 let text_left = (r_price - orig_w) as u32;
                 let text_right = r_price as u32;
-                let mut sx = text_left;
-                while sx < text_right {
-                    if sx < img.width() && strike_y < img.height() {
-                        img.put_pixel(sx, strike_y, Rgb([0,0,0]));
-                        if strike_y + 1 < img.height() {
-                            img.put_pixel(sx, strike_y + 1, Rgb([0,0,0]));
+                for sx in text_left..text_right {
+                    if sx < img.width() {
+                        for dy in 0..3u32 {
+                            let sy = strike_y + dy;
+                            if sy < img.height() {
+                                img.put_pixel(sx, sy, Rgb([0,0,0]));
+                            }
                         }
                     }
-                    sx += 3;
                 }
 
                 let discount_label = format!("خصم {:.2}", saved);
@@ -526,6 +525,7 @@ pub async fn print_receipt(payload: JsPrintPayload) -> Result<String> {
         // Feed 3 lines before cutting so the blade clears the last printed content
         p = p.custom(&[0x0A, 0x0A, 0x0A]).map_err(|e| Error::from_reason(e.to_string()))?;
         p = p.print_cut().map_err(|e| Error::from_reason(e.to_string()))?;
+        p.print().map_err(|e| Error::from_reason(e.to_string()))?;
 
         Ok(format!("✅ Receipt printed on {}", port))
     })
