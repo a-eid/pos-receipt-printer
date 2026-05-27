@@ -113,9 +113,9 @@ impl Default for Layout {
 #[allow(non_snake_case)]
 pub struct JsItem {
     pub name: String,
-    pub qty: String, // keep as string for stability
-    pub price: f64,
-    pub total: f64,
+    pub qty: String,
+    pub price: Either<String, f64>,
+    pub total: Either<String, f64>,
     pub originalPrice: Option<Either<String, f64>>,
 }
 #[napi(object)]
@@ -439,15 +439,14 @@ fn pack_esc_star_24(gray: &GrayImage, y0: u32, threshold: u8) -> Vec<u8> {
 pub async fn print_receipt(payload: JsPrintPayload) -> Result<String> {
     // Convert payload to internal structs
     let items: Vec<Item> = payload.items.into_iter()
-        .map(|i| Item {
-            name: i.name,
-            qty_str: i.qty,
-            price: i.price as f32,
-            total: i.total as f32,
-            original_price: i.originalPrice.and_then(|v| match v {
+        .map(|i| {
+            let price = match i.price { Either::A(s) => s.parse::<f32>().unwrap_or(0.0), Either::B(n) => n as f32 };
+            let total = match i.total { Either::A(s) => s.parse::<f32>().unwrap_or(0.0), Either::B(n) => n as f32 };
+            let original_price = i.originalPrice.and_then(|v| match v {
                 Either::A(s) => s.parse::<f32>().ok(),
                 Either::B(n) => Some(n as f32),
-            }),
+            });
+            Item { name: i.name, qty_str: i.qty, price, total, original_price }
         })
         .collect();
 
