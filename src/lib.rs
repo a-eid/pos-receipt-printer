@@ -42,8 +42,10 @@ struct Item {
     name: String,
     qty_str: String,
     price: f32,
-    total: f32,
     original_price: Option<f32>,
+    price_str: String,
+    total_str: String,
+    original_price_str: Option<String>,
 }
 
 #[derive(Clone)]
@@ -53,7 +55,8 @@ struct ReceiptData {
     invoice_no: String,
     items: Vec<Item>,
     discount: f32,
-    total: f32,
+    total_str: String,
+    discount_str: String,
     footer_address: String,
     footer_delivery: String,
     footer_phones: String,
@@ -327,8 +330,8 @@ fn render_receipt(data: &ReceiptData, layout: &Layout) -> GrayImage {
 
             if i == 0 {
                 draw_ltr_right(&mut img, &font, s_item, &it.qty_str, r_qty, yy);
-                draw_ltr_right(&mut img, &font, s_item, &format!("{:.2}", it.price), r_price, yy);
-                draw_ltr_right(&mut img, &font, s_item, &format!("{:.2}", it.total), r_total, yy);
+                draw_ltr_right(&mut img, &font, s_item, &it.price_str, r_price, yy);
+                draw_ltr_right(&mut img, &font, s_item, &it.total_str, r_total, yy);
             }
         }
 
@@ -337,7 +340,7 @@ fn render_receipt(data: &ReceiptData, layout: &Layout) -> GrayImage {
         if let Some(op) = it.original_price {
             if op > it.price + 0.001 {
                 let saved = op - it.price;
-                let orig_str = format!("{:.2}", op);
+                let orig_str = it.original_price_str.as_deref().unwrap_or("");
 
                 draw_ltr_right(&mut img, &font, s_discount, &orig_str, r_price, y);
 
@@ -377,7 +380,7 @@ fn render_receipt(data: &ReceiptData, layout: &Layout) -> GrayImage {
         let lw = measure(Scale::uniform(layout.fonts.total_label), &font, &shape(label));
         let right = right_edge;
         draw_ltr_right(&mut img, &font, Scale::uniform(layout.fonts.total_label),
-                       &format!("{:.2}", data.discount), right - lw - gap, y);
+                       &data.discount_str, right - lw - gap, y);
         draw_mixed_rtl_right(&mut img, &font, Scale::uniform(layout.fonts.total_label), label, right, y);
         y += layout.row_gap - 6;
     }
@@ -388,7 +391,7 @@ fn render_receipt(data: &ReceiptData, layout: &Layout) -> GrayImage {
     let lw = measure(Scale::uniform(layout.fonts.total_label), &font, &shape(label));
     let right = right_edge;
     draw_ltr_right(&mut img, &font, Scale::uniform(layout.fonts.total_value),
-                   &format!("{:.2}", data.total), right - lw - gap, y - 10);
+                   &data.total_str, right - lw - gap, y - 10);
     draw_mixed_rtl_right(&mut img, &font, Scale::uniform(layout.fonts.total_label), label, right, y);
     y += layout.row_gap;
 
@@ -441,9 +444,8 @@ pub async fn print_receipt(payload: JsPrintPayload) -> Result<String> {
     let items: Vec<Item> = payload.items.into_iter()
         .map(|i| {
             let price = i.price.parse::<f32>().unwrap_or(0.0);
-            let total = i.total.parse::<f32>().unwrap_or(0.0);
-            let original_price = i.originalPrice.and_then(|s| s.parse::<f32>().ok());
-            Item { name: i.name, qty_str: i.qty, price, total, original_price }
+            let original_price = i.originalPrice.as_ref().and_then(|s| s.parse::<f32>().ok());
+            Item { name: i.name, qty_str: i.qty, price, original_price, price_str: i.price, total_str: i.total, original_price_str: i.originalPrice }
         })
         .collect();
 
@@ -452,8 +454,9 @@ pub async fn print_receipt(payload: JsPrintPayload) -> Result<String> {
         date_time_line: payload.time,
         invoice_no: payload.number,
         items,
-        discount: payload.discount.and_then(|s| s.parse::<f32>().ok()).unwrap_or(0.0),
-        total: payload.total.parse::<f32>().unwrap_or(0.0),
+        discount: payload.discount.as_ref().and_then(|s| s.parse::<f32>().ok()).unwrap_or(0.0),
+        discount_str: payload.discount.unwrap_or_default(),
+        total_str: payload.total,
         footer_address: payload.footer.address,
         footer_delivery: payload.footer.lastLine,
         footer_phones: payload.footer.phones.unwrap_or_default(),
